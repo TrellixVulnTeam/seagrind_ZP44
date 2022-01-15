@@ -1,8 +1,17 @@
 import re
 import requests
+import platform
+import os
+import tarfile
+import zipfile
 
-STARTS = ["https://", "ftps://", "http://", "ftp://"]
-ENDS = ["\\.zip", "tar\\.gz", "tar\\.bz2"]
+
+class GECKOLINKS:
+    baseurl = "https://github.com"
+    prefix = "/mozilla/geckodriver/releases/download/"
+    Linux = "linux64.tar.gz"
+    Darwin = "macos.tar.gz"
+    Windows = "win64.zip"
 
 
 def either_of(item):
@@ -21,14 +30,38 @@ def get_matches(text, startswith, endswith):
     return list(set(matches))
 
 
-if __name__ == '__main__':
-    html = """
-    <!DOCTYPE html>
-    <html>
-        <body>
-            <a href="https://github.com/org/repo/releases/download/version/file.tar.gz">Latest release</a>
-            <a href="https://github.com/org/repo/releases/download/version/old.tar.gz">Previous release</a>
-        </body>
-    </html>
-    """
-    print(get_matches(html, STARTS, ENDS))
+def filter_links(links, keywords):
+    return next(filter(lambda link: all((key in link) for key in keywords), links))
+
+
+def download_archive(url):
+    resp = requests.get(url)
+    archive = url.split('/')[-1]
+    with open(archive, 'wb') as f:
+        f.write(resp.content)
+    return archive
+
+
+def extract_archive(archive):
+    if 'tar' in archive:
+        with tarfile.open(archive) as f:
+            f.extractall('./driver/')
+    if 'zip' in archive:
+        with zipfile.ZipFile(archive, 'r') as f:
+            f.extractall('./driver/')
+    os.remove(archive)
+
+
+def get_geckodriver():
+    if os.path.exists('./driver/'):
+        if any('geckodriver' in x for x in os.listdir('./driver/')):
+            return None
+    resp = requests.get("https://github.com/mozilla/geckodriver/releases/latest")
+    html = resp.text
+    links = get_matches(html,
+                        [GECKOLINKS.prefix],
+                        ["\\.zip", "tar\\.gz"])
+    p = platform.system()
+    ext_url = filter_links(links, getattr(GECKOLINKS, p))
+    archive = download_archive(GECKOLINKS.baseurl + ext_url)
+    extract_archive(archive)
