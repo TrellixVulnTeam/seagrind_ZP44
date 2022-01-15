@@ -1,3 +1,6 @@
+__pycache__/
 driver/
 venv/
 .idea/
+0x*/
+*.log
